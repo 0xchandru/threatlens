@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     RATE_LIMIT:   int = 200
 
+    CORS_ORIGINS: str = "*"
+
     class Config:
         env_file = ".env"
 

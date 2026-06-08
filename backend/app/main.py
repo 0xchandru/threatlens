@@ -5,6 +5,8 @@ from fastapi.responses import FileResponse
 from app.database import init_db
 from app.api.v1 import ioc, dashboard, search, reports
 import os
+from app.config import settings
+
 
 app = FastAPI(
     title="ThreatLens API",
@@ -12,9 +14,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
+_cors_origins = (
+    ["*"] if settings.CORS_ORIGINS.strip() == "*"
+    else [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
