@@ -168,7 +168,7 @@ Professional reports via ReportLab:
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/yourusername/threatlens.git
+git clone https://github.com/0xchandru/threatlens.git
 cd threatlens
 
 # Backend
