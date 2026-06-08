@@ -376,7 +376,7 @@ if threat["risk_level"] in ("malicious", "critical"):
 To allow your SecOps project to call ThreatLens cross-origin, set in `.env`:
 
 ```env
-CORS_ORIGINS=https://your-secops.replit.app,http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,https://your-domain.com
 ```
 
 ---
@@ -489,18 +489,6 @@ Confidence:
 
 ---
 
-## 🎤 Portfolio Talking Points
-
-**"Why parallel async querying?"**
-> Sequential calls to 5 APIs take 5–15 seconds. With `asyncio.gather`, all 5 fire simultaneously. Average lookup: ~800ms — the speed SOC analysts need when triaging hundreds of alerts per shift.
-
-**"How did you design the scoring algorithm?"**
-> Weighted by source strength: VirusTotal covers 70+ AV engines (highest weight), AbuseIPDB specializes in IP abuse, OTX adds threat actor attribution. The confidence metric tells the analyst how much data backed the score.
-
-**"What does the MITRE mapping add?"**
-> Raw data says "malicious". MITRE says "this is Active Scanning + C2" — which determines the SOC response: block at perimeter, escalate to IR, or user education.
-
----
 
 ## 📜 License
 
@@ -512,6 +500,6 @@ MIT — free to use for portfolio, learning, and production projects.
 
 Built for SOC analysts · Powered by open threat intelligence · Made with ❤️
 
-**[Live Demo](https://replit.com) · [API Docs](http://localhost:8000/docs) · [Blueprint](Threatlens_Blueprint.md)**
+**[Architecture](Architecture.md) · [Blueprint](Threatlens_Blueprint.md)**
 
 </div>
