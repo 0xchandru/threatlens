@@ -1,0 +1,731 @@
+Cybersecurity Project Roadmap — Final Year, 2-Month Sprint
+I'll be blunt first, then detailed.
+
+Honest Reality Check Before We Start
+Firebase is NOT the ideal primary backend for most cybersecurity projects. Here's why:
+
+Firestore (NoSQL) is terrible for complex log queries, joins, aggregations — the bread and butter of security analysis
+Cloud Functions on the Spark (free) plan cannot make outbound network calls to external APIs (VirusTotal, AbuseIPDB, etc.) — you NEED the Blaze plan for that
+Firebase has no native SQL, which means no SIEM-like querying
+Supabase is significantly better for your goals because:
+
+PostgreSQL gives you SQL (which real SIEMs use)
+Row-Level Security (RLS) is itself a security concept worth demonstrating
+Edge Functions on the free tier CAN call external APIs
+Free tier: 500MB DB, 1GB storage, 50K monthly auth users, edge functions included
+My recommendation: Use Supabase as your primary backend for data-heavy projects, and Firebase for auth/hosting/real-time features where it's genuinely better. I'll specify which to use for each project.
+
+Also: Projects alone won't get you hired in India's cybersecurity market. Pair these with:
+
+Google Cybersecurity Professional Certificate (Coursera, free audit)
+TryHackMe SOC Level 1 path (free rooms available)
+CompTIA Security+ (if budget allows)
+Strong GitHub documentation with README, architecture diagrams, and write-ups
+The 5 Project Ideas (Ranked by Impact)
+Project 1: 🔴 PRIORITY — "SecOps Console" — Mini SIEM with Detection Engine
+What It Does
+A web-based Security Information and Event Management (SIEM) lite system that:
+
+Ingests security logs (Windows Event Logs, Linux syslog, firewall logs, auth logs)
+Normalizes and parses them into a unified schema
+Runs detection rules against incoming logs (YAML-based, like Sigma rules)
+Maps detections to MITRE ATT&CK techniques
+Generates real-time alerts with severity scoring
+Provides an analyst investigation dashboard (search, filter, timeline, drill-down)
+Tracks alert status (New → Investigating → Resolved → False Positive)
+Why It Matters
+This IS what you'll do as a SOC Analyst. Every single day. Building a simplified version proves you understand:
+
+Log formats and normalization
+Detection engineering (writing rules)
+MITRE ATT&CK framework (required knowledge)
+Alert triage workflow
+The architecture of the tools you'll be using (Splunk, QRadar, Sentinel)
+No other project comes close to this for SOC Analyst hiring.
+
+Architecture & Tech Stack
+text
+
+┌─────────────────────────────────────────────────────────┐
+│                    FRONTEND (React)                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
+│  │ Alert    │ │ Log      │ │ MITRE    │ │ Analyst   │  │
+│  │ Dashboard│ │ Explorer │ │ ATT&CK   │ │ Workbench │  │
+│  │          │ │          │ │ Heatmap  │ │           │  │
+│  └──────────┘ └──────────┘ └──────────┘ └───────────┘  │
+└───────────────────────┬─────────────────────────────────┘
+                        │
+         ┌──────────────┼──────────────┐
+         │              │              │
+    ┌────▼────┐   ┌─────▼─────┐  ┌────▼─────┐
+    │Supabase │   │ Supabase  │  │ Firebase │
+    │PostgreSQL│  │ Edge Func │  │ Auth     │
+    │(Logs,   │   │(Detection │  │          │
+    │ Alerts) │   │ Engine,   │  │ Firebase │
+    │         │   │ Rule      │  │ Hosting  │
+    └─────────┘   │ Matching) │  └──────────┘
+                  └─────┬─────┘
+                        │
+              ┌─────────▼──────────┐
+              │  Python Ingestion  │
+              │  Scripts (Local)   │
+              │  - Parse logs      │
+              │  - Normalize       │
+              │  - Push to Supabase│
+              └────────────────────┘
+Detailed Tech Stack
+Layer	Technology	Why
+Frontend	React + Tailwind CSS + Recharts/D3.js	Modern, fast, good visualizations
+Auth	Firebase Auth	Easy role-based access (Analyst vs Admin)
+Database	Supabase PostgreSQL	SQL queries are essential — SELECT * FROM logs WHERE source_ip = '...' AND event_type = 'failed_login' AND timestamp > NOW() - INTERVAL '1 hour' — this is impossible to do efficiently in Firestore
+Detection Engine	Supabase Edge Functions	Process incoming logs, match against YAML detection rules, create alerts
+Log Ingestion	Python scripts (run locally or via cron)	Parse raw log files, normalize to schema, insert into Supabase
+Hosting	Firebase Hosting	Free, fast CDN
+Real-time	Supabase Realtime	Push new alerts to dashboard instantly
+Why Supabase Over Firebase Here
+This is the project where the choice matters most:
+
+SQL
+
+-- "Show me all brute force attempts in the last hour"
+-- This query is trivial in PostgreSQL:
+SELECT source_ip, COUNT(*) as attempts, 
+       array_agg(DISTINCT username) as targeted_users
+FROM security_logs 
+WHERE event_type = 'authentication_failure' 
+  AND timestamp > NOW() - INTERVAL '1 hour'
+GROUP BY source_ip 
+HAVING COUNT(*) > 10
+ORDER BY attempts DESC;
+
+-- In Firestore? You'd need composite indexes, multiple queries,
+-- client-side aggregation, and it would still be slow and expensive.
+-- This is a non-starter for log analysis.
+Sample Detection Rule (YAML — like Sigma)
+YAML
+
+title: Brute Force - Multiple Failed Logins
+id: rule-001
+status: active
+mitre_attack:
+  tactic: Credential Access
+  technique: T1110.001
+  name: Brute Force - Password Guessing
+severity: high
+detection:
+  source: auth_logs
+  condition:
+    event_type: "authentication_failure"
+    group_by: "source_ip"
+    threshold: 10
+    timewindow: "5m"
+  alert_message: "Potential brute force attack from {source_ip} - {count} failed attempts in 5 minutes"
+response:
+  - create_alert
+  - notify_analyst
+Sample Log Schema (Normalized)
+JSON
+
+{
+  "id": "uuid",
+  "timestamp": "2025-01-15T14:30:00Z",
+  "source": "windows_security",
+  "event_id": 4625,
+  "event_type": "authentication_failure",
+  "severity": "medium",
+  "source_ip": "192.168.1.105",
+  "dest_ip": "10.0.0.5",
+  "username": "admin",
+  "hostname": "DC-01",
+  "raw_log": "...",
+  "mitre_tactic": "Credential Access",
+  "mitre_technique": "T1110"
+}
+Key Features to Build (in order of priority)
+text
+
+Week 1:
+  ✓ Database schema design in Supabase
+  ✓ Python log parser for 2-3 log formats (Windows Event, auth.log, Apache)
+  ✓ Log ingestion pipeline → Supabase
+  ✓ Basic React dashboard showing logs in table format
+
+Week 2:
+  ✓ Detection rules engine (Edge Function that runs on new log insert)
+  ✓ 5-8 detection rules (brute force, privilege escalation, 
+    suspicious process, port scan, impossible travel)
+  ✓ Alert generation and severity scoring
+  ✓ MITRE ATT&CK mapping for each rule
+
+Week 3:
+  ✓ Analyst dashboard — alert queue, status management
+  ✓ Log search and filtering (time range, source IP, event type)
+  ✓ MITRE ATT&CK navigator heatmap (which techniques are detected)
+  ✓ Firebase Auth for analyst login
+
+Week 4:
+  ✓ Alert timeline visualization
+  ✓ Log correlation (link related events by IP/session)
+  ✓ Statistics: top attacking IPs, most triggered rules, detection trends
+  ✓ Polish, documentation, demo data
+How This Gets You Hired
+Interview talking point: "I built a SIEM from scratch. I can explain how detection rules work, how log normalization works, and how analysts triage alerts."
+Demonstrates: MITRE ATT&CK knowledge, log analysis, SQL skills, detection engineering, understanding of SOC workflow
+Differentiator: 99% of freshers have never built anything like this. Most will show you a port scanner or a password checker.
+Project 2: 🔴 PRIORITY — "ThreatLens" — Threat Intelligence Platform
+What It Does
+A web application that allows security analysts to:
+
+Look up any IP address, domain, URL, or file hash against multiple threat intelligence sources
+Aggregate results from VirusTotal, AbuseIPDB, OTX AlienVault, URLhaus, and Shodan
+Calculate a composite threat score based on multi-source correlation
+Maintain a local database of investigated IOCs (Indicators of Compromise) with analyst notes
+Tag and categorize IOCs (malware, phishing, C2, scanner, etc.)
+Visualize threat trends and geographic distribution of threats
+Export investigation reports
+Why It Matters
+Threat intelligence is a core SOC function. Analysts constantly look up IPs and domains. Building a unified platform shows you understand:
+
+What IOCs are and how they're used in investigations
+How to consume and correlate threat feeds
+API integration at scale
+Data enrichment workflows
+Architecture & Tech Stack
+text
+
+┌──────────────────────────────────────────────┐
+│              FRONTEND (React)                │
+│  ┌──────────┐ ┌──────────┐ ┌──────────────┐ │
+│  │ IOC      │ │ Investi- │ │ Threat Map   │ │
+│  │ Lookup   │ │ gation   │ │ & Analytics  │ │
+│  │ Search   │ │ History  │ │              │ │
+│  └──────────┘ └──────────┘ └──────────────┘ │
+└──────────────────┬───────────────────────────┘
+                   │
+        ┌──────────┼──────────┐
+        │          │          │
+   ┌────▼────┐ ┌───▼────┐ ┌──▼──────────┐
+   │Firebase │ │Firebase│ │ Firebase    │
+   │Firestore│ │Auth    │ │ Hosting     │
+   │(IOC DB, │ │        │ │             │
+   │ Cache)  │ │        │ │             │
+   └─────────┘ └────────┘ └─────────────┘
+        │
+   ┌────▼───────────────────────────────┐
+   │  Cloud Functions (Blaze Plan)      │
+   │  OR Supabase Edge Functions        │
+   │                                    │
+   │  ┌──────────┐ ┌──────────┐         │
+   │  │VirusTotal│ │AbuseIPDB │         │
+   │  │API       │ │API       │         │
+   │  └──────────┘ └──────────┘         │
+   │  ┌──────────┐ ┌──────────┐         │
+   │  │OTX       │ │URLhaus   │         │
+   │  │AlienVault│ │API       │         │
+   │  └──────────┘ └──────────┘         │
+   │  ┌──────────┐                      │
+   │  │Shodan    │  → Aggregate →       │
+   │  │API       │    Score    →        │
+   │  └──────────┘    Return   →        │
+   └────────────────────────────────────┘
+Tech Stack Decision: Firebase vs Supabase
+Aspect	Firebase	Supabase	Winner
+IOC caching	Firestore (document-based, good for key-value lookups by IP/hash)	PostgreSQL (works fine)	Firebase — simple key-value lookup is Firestore's strength
+External API calls	Cloud Functions (requires Blaze plan)	Edge Functions (free tier)	Supabase — free
+Real-time updates	Firebase Realtime DB	Supabase Realtime	Tie
+Auth	Firebase Auth	Supabase Auth	Tie
+My recommendation: Use Supabase Edge Functions for the API aggregation layer (saves money), and Firebase Firestore for caching results + Firebase Auth for login. Or go full Supabase to keep it simple.
+
+Alternative if you want to avoid paid plans entirely: Run the API aggregation as a local Python FastAPI backend and only use Firebase/Supabase for the frontend database and auth. This is actually more realistic and demonstrates backend skills.
+
+Practical Architecture (Budget-Friendly)
+text
+
+┌────────────┐     ┌─────────────────┐     ┌──────────────┐
+│  React     │────▶│ Python FastAPI   │────▶│ Threat Intel │
+│  Frontend  │◀────│ (localhost or    │◀────│ APIs         │
+│            │     │  free Render.com)│     │ (VT, AIPDB..)│
+└────────────┘     └────────┬────────┘     └──────────────┘
+                            │
+                   ┌────────▼────────┐
+                   │   Supabase      │
+                   │   PostgreSQL    │
+                   │   (IOC store,   │
+                   │    cache,       │
+                   │    history)     │
+                   └─────────────────┘
+Key Features
+Python
+
+# Example: Multi-source IOC Enrichment (Python FastAPI)
+
+@app.post("/api/investigate")
+async def investigate_ioc(ioc: IOCRequest):
+    results = {}
+    
+    # Parallel API calls to threat intel sources
+    results["virustotal"] = await query_virustotal(ioc.value)
+    results["abuseipdb"] = await query_abuseipdb(ioc.value)
+    results["otx"] = await query_otx(ioc.value)
+    results["urlhaus"] = await query_urlhaus(ioc.value)
+    
+    # Composite threat score calculation
+    threat_score = calculate_threat_score(results)
+    
+    # Categorization
+    category = categorize_threat(results)  # malware, phishing, C2, scanner, clean
+    
+    # Cache result in Supabase
+    await cache_investigation(ioc.value, results, threat_score)
+    
+    return {
+        "ioc": ioc.value,
+        "type": ioc.type,  # ip, domain, hash, url
+        "threat_score": threat_score,  # 0-100
+        "category": category,
+        "sources": results,
+        "mitre_techniques": map_to_mitre(results),
+        "recommendations": generate_recommendations(threat_score)
+    }
+Scoring Algorithm Example
+Python
+
+def calculate_threat_score(results: dict) -> int:
+    score = 0
+    weights = {
+        "virustotal": 35,
+        "abuseipdb": 25,
+        "otx": 20,
+        "urlhaus": 20
+    }
+    
+    if results["virustotal"]:
+        detection_ratio = results["virustotal"]["positives"] / results["virustotal"]["total"]
+        score += detection_ratio * weights["virustotal"]
+    
+    if results["abuseipdb"]:
+        confidence = results["abuseipdb"]["abuse_confidence_score"] / 100
+        score += confidence * weights["abuseipdb"]
+    
+    if results["otx"]:
+        pulse_count = min(results["otx"]["pulse_count"] / 10, 1)
+        score += pulse_count * weights["otx"]
+    
+    if results["urlhaus"]:
+        if results["urlhaus"]["threat"] == "malware_download":
+            score += weights["urlhaus"]
+    
+    return min(int(score), 100)
+How This Gets You Hired
+Shows you understand threat intelligence lifecycle
+Demonstrates API integration and data correlation — real-world skills
+Proves you know what IOCs are and how analysts use them
+The scoring algorithm shows analytical thinking
+Very demo-friendly in interviews — type in an IP, get instant results
+Project 3: 🟡 PRIORITY — "IncidentFlow" — Incident Response Case Manager
+What It Does
+A web application for managing cybersecurity incidents through their complete lifecycle:
+
+Create incidents with severity classification (P1-P4)
+Link incidents to related alerts (from your SIEM project)
+Track incidents through NIST phases: Detection → Analysis → Containment → Eradication → Recovery → Post-Incident
+Attach evidence: logs, screenshots, IOC lists
+Automated playbook suggestions based on incident type
+Timeline visualization of incident progression
+Post-incident report generation
+SLA tracking (time to detect, time to respond, time to resolve)
+Why It Matters
+Every SOC has an incident management process. Understanding the IR lifecycle is essential for Security Analyst interviews. This project shows:
+
+You know the NIST Incident Response framework
+You understand SLA-driven operations
+You can think about process, not just technology
+Tech Stack
+Component	Technology	Reason
+Frontend	React + Tailwind	Consistent with other projects
+Database	Firebase Firestore	Document model works well here — incidents are documents with nested evidence, notes, timeline entries. No complex queries needed.
+Auth	Firebase Auth	Role-based: Analyst, Lead, Manager
+File Storage	Firebase Storage	Store evidence files (screenshots, logs)
+Hosting	Firebase Hosting	Free tier sufficient
+Notifications	Firebase Cloud Messaging (optional)	Alert on P1 incidents
+Why Firebase Works Here (Not Supabase)
+Unlike log analysis, incident management is a document-centric workflow:
+
+JavaScript
+
+// An incident is naturally a document with nested data
+// This is PERFECT for Firestore
+
+const incident = {
+  id: "INC-2025-0042",
+  title: "Ransomware detected on endpoint WS-104",
+  severity: "P1",
+  status: "containment",
+  type: "malware",
+  created_at: Timestamp.now(),
+  assigned_to: "analyst@company.com",
+  
+  // NIST IR phases with timestamps
+  phases: {
+    detection: { completed: true, timestamp: "...", notes: "EDR alert triggered" },
+    analysis: { completed: true, timestamp: "...", notes: "Confirmed LockBit variant" },
+    containment: { completed: false, in_progress: true, actions: ["Isolated host", "Blocked C2 IP"] },
+    eradication: { completed: false },
+    recovery: { completed: false },
+    post_incident: { completed: false }
+  },
+  
+  // Linked evidence
+  evidence: [
+    { type: "log", description: "EDR detection log", file_url: "..." },
+    { type: "ioc", value: "185.220.101.45", ioc_type: "ip", source: "C2 communication" },
+    { type: "screenshot", description: "Ransom note", file_url: "..." }
+  ],
+  
+  // Timeline
+  timeline: [
+    { timestamp: "...", action: "Alert received from EDR", actor: "system" },
+    { timestamp: "...", action: "Incident created, assigned to analyst", actor: "soc_lead" },
+    { timestamp: "...", action: "Host isolated from network", actor: "analyst@company.com" }
+  ],
+  
+  // Playbook
+  playbook: "playbook-ransomware-v2",
+  
+  // Metrics
+  metrics: {
+    time_to_detect: 180,   // seconds
+    time_to_respond: 420,  // seconds
+    time_to_resolve: null  // not yet resolved
+  }
+}
+Playbook System
+YAML
+
+# playbook-ransomware-v2.yaml
+name: Ransomware Incident Response
+type: malware.ransomware
+severity_default: P1
+phases:
+  detection:
+    checklist:
+      - "Confirm alert is true positive"
+      - "Identify affected endpoints"
+      - "Determine ransomware variant"
+  analysis:
+    checklist:
+      - "Check for lateral movement indicators"
+      - "Identify initial access vector"
+      - "Assess data exfiltration risk"
+      - "Lookup ransomware IOCs in ThreatLens"
+    auto_actions:
+      - action: "lookup_iocs"
+        description: "Auto-check all extracted IOCs against threat intel"
+  containment:
+    checklist:
+      - "Isolate affected hosts from network"
+      - "Block C2 IPs at firewall"
+      - "Disable compromised accounts"
+      - "Preserve forensic evidence"
+    critical: true
+  eradication:
+    checklist:
+      - "Remove malware from all affected systems"
+      - "Reset compromised credentials"
+      - "Patch exploited vulnerability"
+  recovery:
+    checklist:
+      - "Restore from clean backups"
+      - "Monitor restored systems for 48 hours"
+      - "Gradually reconnect to network"
+  post_incident:
+    checklist:
+      - "Document lessons learned"
+      - "Update detection rules"
+      - "Brief management"
+      - "Update playbook if needed"
+How This Gets You Hired
+Directly demonstrates NIST IR framework knowledge — interviewers WILL ask about this
+Shows process-oriented thinking, not just technical skills
+The playbook system shows you can think about standardized response procedures
+SLA metrics show you understand operational expectations in a SOC
+Project 4: "CloudGuard" — Firebase/Cloud Security Misconfiguration Scanner
+What It Does
+A tool that scans Firebase (and other cloud) configurations for security misconfigurations:
+
+Checks Firestore security rules for overly permissive access
+Tests Firebase Auth settings (weak password requirements, unnecessary providers)
+Scans Firebase Storage rules for public read/write
+Tests for exposed API keys in client-side code
+Checks for insecure Cloud Function configurations
+Generates a compliance report with remediation steps
+Maps findings to CIS benchmarks or OWASP guidelines
+Why It's Interesting
+This is meta — using your Firebase knowledge to build a security tool FOR Firebase. It demonstrates:
+
+Understanding of cloud security posture management (CSPM)
+Knowledge of common cloud misconfigurations (a HUGE attack surface in real world)
+Offensive + defensive thinking
+The #1 cause of cloud breaches is misconfiguration — you're addressing a real problem
+Tech Stack
+text
+
+Python CLI tool + Web Dashboard
+
+┌────────────────┐     ┌──────────────────┐
+│  Python CLI    │     │  React Dashboard │
+│  Scanner       │     │  (Results View)  │
+│                │     │                  │
+│  - Parse rules │────▶│  - Risk score    │
+│  - Test APIs   │     │  - Findings list │
+│  - Check config│     │  - Remediation   │
+│                │     │  - History       │
+└────────────────┘     └────────┬─────────┘
+                                │
+                       ┌────────▼─────────┐
+                       │  Supabase        │
+                       │  (Scan results,  │
+                       │   history)       │
+                       └──────────────────┘
+Sample Scan Rules
+Python
+
+class FirestoreRuleScanner:
+    def check_rules(self, rules_content: str) -> list:
+        findings = []
+        
+        # Check for allow read, write: if true (open to everyone)
+        if re.search(r'allow\s+read,\s*write:\s*if\s+true', rules_content):
+            findings.append({
+                "severity": "CRITICAL",
+                "title": "Firestore database is publicly readable and writable",
+                "description": "Any unauthenticated user can read and modify all data",
+                "cis_benchmark": "CIS Firebase 1.1",
+                "remediation": "Restrict access to authenticated users: allow read, write: if request.auth != null",
+                "mitre_technique": "T1530 - Data from Cloud Storage"
+            })
+        
+        # Check for missing auth check on write
+        if re.search(r'allow\s+write:\s*if\s+true', rules_content):
+            findings.append({
+                "severity": "HIGH",
+                "title": "Firestore allows unauthenticated writes",
+                "description": "Any user can write data without authentication",
+                "remediation": "Add authentication check to write rules"
+            })
+        
+        # Check for no rate limiting on reads
+        # Check for admin-level access without role verification
+        # ... more rules
+        
+        return findings
+How This Gets You Hired
+Shows cloud security knowledge — a rapidly growing field
+Demonstrates ability to think like both attacker and defender
+CSPM is a hot skill — tools like Prisma Cloud, Wiz, and Prowler are in huge demand
+Very niche — almost no freshers build something like this
+Can be extended to AWS/GCP scanning in the future
+Honest Assessment
+This project is impressive but less directly relevant to SOC Analyst roles compared to the SIEM and Threat Intel projects. Build this only if you have time after Projects 1-3, OR if you're also targeting Cloud Security / DevSecOps roles.
+
+Project 5: "PhishNet Pro" — Advanced Phishing Analysis Engine
+What It Does (Enhanced Version of Your Existing Project)
+Goes far beyond basic phishing detection:
+
+Email header analysis: Extract and analyze full email headers (SPF, DKIM, DMARC validation)
+URL detonation: Expand shortened URLs, screenshot suspicious pages, check against threat feeds
+Attachment analysis: Extract file hashes, check against VirusTotal, analyze macros in Office files
+Brand impersonation detection: Compare suspicious pages against known legitimate brand pages using visual similarity
+ML-based classification: Train a model on phishing vs legitimate emails
+IOC extraction: Automatically pull out IPs, domains, URLs, hashes from email content
+Feed results back to ThreatLens (Project 2) for enrichment
+Why This Matters
+You already have a phishing detector — upgrading it to production-quality shows depth and iteration, which employers value more than breadth.
+
+Tech Stack
+text
+
+Frontend: React
+Backend: Python FastAPI (heavy processing)
+Database: Supabase (store analyzed emails, results)
+ML: scikit-learn (classification model)
+APIs: VirusTotal, Google Safe Browsing, PhishTank
+Honest Assessment
+Don't build this as a standalone project. Instead, integrate phishing analysis as a module within your SIEM (Project 1) or Threat Intel Platform (Project 2). Having fewer, deeper projects is better than many shallow ones.
+
+The 2-Month Priority Plan
+Given your time constraint, here's exactly what to build and when:
+
+text
+
+╔══════════════════════════════════════════════════════════════╗
+║                    8-WEEK EXECUTION PLAN                     ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  WEEKS 1-4: Project 1 — "SecOps Console" (Mini SIEM)        ║
+║  ─────────────────────────────────────────────────────        ║
+║  Week 1: Database schema + Python log parser + ingestion     ║
+║  Week 2: Detection rules engine + MITRE mapping              ║
+║  Week 3: React dashboard (alerts, log search, timeline)      ║
+║  Week 4: Polish + demo dataset + documentation               ║
+║                                                              ║
+║  WEEKS 3-6: Project 2 — "ThreatLens" (Threat Intel)         ║
+║  ─────────────────────────────────────────────────────        ║
+║  Week 3: API integrations (VT, AbuseIPDB, OTX) [overlap]    ║
+║  Week 4: Scoring algorithm + IOC database                    ║
+║  Week 5: React frontend + investigation history              ║
+║  Week 6: Connect ThreatLens to SecOps Console                ║
+║                                                              ║
+║  WEEKS 7-8: Project 3 — "IncidentFlow" (IR Tracker)         ║
+║  ─────────────────────────────────────────────────────        ║
+║  Week 7: Incident CRUD + lifecycle + playbooks               ║
+║  Week 8: Link to SIEM alerts + polish everything             ║
+║                                                              ║
+║  THE KEY DIFFERENTIATOR:                                     ║
+║  All 3 projects CONNECT to form a unified SOC platform.      ║
+║  SIEM detects → ThreatLens enriches → IncidentFlow manages   ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+Why These 3 and Not the Others
+Project	Direct SOC Relevance	Buildable in Time	Interview Impact	Priority
+SecOps Console (SIEM)	★★★★★	★★★★	★★★★★	#1 MUST BUILD
+ThreatLens (Threat Intel)	★★★★★	★★★★★	★★★★	#2 MUST BUILD
+IncidentFlow (IR)	★★★★	★★★★★	★★★★	#3 BUILD IF TIME
+CloudGuard (Scanner)	★★★	★★★	★★★★	Build later
+PhishNet Pro	★★★	★★★	★★★	Integrate into #1/#2
+Firebase vs Supabase — Final Decision Matrix
+text
+
+┌────────────────────┬────────────────────┬──────────────────┐
+│     Project        │   Firebase         │   Supabase       │
+├────────────────────┼────────────────────┼──────────────────┤
+│ SecOps Console     │ Auth + Hosting     │ PostgreSQL (logs)│
+│ (SIEM)             │ only               │ Edge Functions   │
+│                    │                    │ ★ PRIMARY        │
+├────────────────────┼────────────────────┼──────────────────┤
+│ ThreatLens         │ Firestore (cache)  │ Edge Functions   │
+│ (Threat Intel)     │ Auth               │ (API calls)      │
+│                    │ Hosting            │ or Python backend│
+├────────────────────┼────────────────────┼──────────────────┤
+│ IncidentFlow       │ Firestore ★        │ Not needed       │
+│ (IR Tracker)       │ Auth ★             │                  │
+│                    │ Storage ★          │                  │
+│                    │ Hosting ★          │                  │
+│                    │ ★ PRIMARY          │                  │
+├────────────────────┼────────────────────┼──────────────────┤
+│ CloudGuard         │ Not needed         │ Store results    │
+│ (Scanner)          │                    │ Python CLI based │
+└────────────────────┴────────────────────┴──────────────────┘
+
+SIMPLE RULE:
+  → Need SQL queries on structured data? → Supabase
+  → Need document storage + real-time? → Firebase
+  → Need external API calls for free? → Supabase Edge Functions
+  → Need file storage + auth? → Firebase
+Additional High-Impact Advice
+1. The "Unified SOC Platform" Framing
+Don't present these as 3 separate projects. Present them as one integrated platform called something like "SecOps Suite" or "CyberNest":
+
+SIEM detects threats
+Threat Intel enriches IOCs found in alerts
+Incident Manager tracks response
+This shows system design thinking — which is what separates you from other freshers.
+
+2. GitHub Presentation Matters
+text
+
+For EACH project repository:
+
+├── README.md (with architecture diagram, screenshots, demo video link)
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── DETECTION_RULES.md
+│   └── API_DOCUMENTATION.md
+├── src/
+├── detection-rules/          # For SIEM
+│   ├── brute-force.yaml
+│   ├── privilege-escalation.yaml
+│   └── lateral-movement.yaml
+├── sample-data/              # Demo logs and data
+├── screenshots/
+└── docker-compose.yml        # Easy setup for reviewers
+3. What NOT to Waste Time On
+❌ Building user registration/profile pages — use Firebase Auth and move on
+❌ Making it pixel-perfect beautiful — functional and clean is enough
+❌ Building a mobile app version — web only
+❌ Deploying to production with real traffic — demo quality is fine
+❌ Building everything from scratch — use libraries (react-table, recharts, etc.)
+4. Spend Time On
+✅ Writing quality detection rules with MITRE ATT&CK mapping
+✅ Creating realistic demo data (use tools like faker or actual public log datasets)
+✅ Writing clear documentation explaining your design decisions
+✅ Recording a 3-5 minute demo video for each project
+✅ Blog posts explaining what you learned (on Medium or Hashnode)
+5. Certifications to Pursue in Parallel
+While building these projects over 2 months, simultaneously work on:
+
+Google Cybersecurity Professional Certificate — free on Coursera (audit mode), recognized in India
+TryHackMe SOC Level 1 Path — free rooms, hands-on
+Splunk Fundamentals 1 — free, and directly relevant to SIEM project
+What Your Resume Should Look Like After This
+text
+
+PROJECTS
+────────
+
+SecOps Suite — Integrated SOC Operations Platform
+├── Mini SIEM with custom detection engine (15+ rules mapped to MITRE ATT&CK)
+├── Threat Intelligence Platform (5+ source aggregation, composite scoring)
+├── Incident Response Manager (NIST-aligned lifecycle tracking)
+├── Tech: React, Python, Supabase (PostgreSQL), Firebase Auth
+├── Processed 50,000+ simulated security events
+└── GitHub: [link] | Demo: [link] | Architecture Doc: [link]
+
+Skills Demonstrated:
+  Log analysis, SIEM architecture, detection engineering, MITRE ATT&CK,
+  threat intelligence, incident response, Python automation, SQL,
+  API integration, cloud security, system design
+This will put you ahead of 95% of fresher applicants for SOC/Security Analyst roles in India. The remaining 5% have certifications like CEH or Security+ — which is why you should pursue the free Google cert in parallel.
+
+Start with the SIEM. Today. Week 1, Day 1: design your PostgreSQL schema in Supabase and write your first Python log parser.
+
+
+
+
+
+
+I am a BSc Computer Science final-year student from India, graduating in about 2 months. My goal is to get a job in cybersecurity or a strong technical role (SOC Analyst, Security Analyst, or related roles).
+
+My current skills:
+
+Cybersecurity basics (log analysis, networking, incident response concepts)
+Basic programming (Python, JavaScript)
+Some projects: phishing detector, honeypot, basic log analysis
+Currently learning SIEM concepts and tools like Splunk
+I plan to use Firebase (Spark plan - free tier) to build practical, real-world projects. I am willing to upgrade to Blaze plan only if absolutely necessary, mainly for storage or scaling.
+
+I am also open to using other BaaS platforms (like Supabase or others) if they are better for specific use cases, so suggest alternatives where appropriate.
+
+I do NOT want beginner-level or generic project ideas. I want:
+
+Real-world, job-oriented, and HR-impressive projects
+Projects aligned with cybersecurity, cloud, and AI (future-proof skills)
+Projects that demonstrate strong problem-solving and system design
+Projects that can help me stand out as a fresher
+Please provide:
+
+The best project ideas I should build using Firebase (or other BaaS if better)
+Clear explanation of each project (what it does, why it matters)
+Suggested tech stack and architecture
+Which Firebase services to use (Auth, Firestore, Functions, etc.)
+Where another BaaS (like Supabase) would be a better choice and why
+How each project helps in getting a cybersecurity or technical job
+Which 2–3 projects I should prioritize given my limited time (2 months)
+Also, if you have any additional high-impact ideas beyond my current direction, feel free to suggest them.
+
+Be honest and critical:
+
+Point out if any idea is unrealistic or not useful for my goal
+Avoid generic suggestions like CRUD apps, clones, or simple dashboards
+I want practical, high-impact guidance that will actually improve my chances of getting hired.
+
