@@ -5,7 +5,7 @@ import AnalystPanel from './AnalystPanel'
 import { useMutation } from '@tanstack/react-query'
 import api from '../lib/api'
 
-const SOURCES = ['virustotal', 'abuseipdb', 'alienvault', 'urlhaus', 'greynoise']
+const SOURCES = ['virustotal', 'abuseipdb', 'alienvault', 'urlhaus', 'threatfox', 'malwarebazaar']
 
 export default function LookupResult({ result, onClose }) {
   if (!result) return null
@@ -30,7 +30,7 @@ export default function LookupResult({ result, onClose }) {
               {ioc?.type}
             </span>
             <span className="text-xs text-slate-500">
-              {source === 'cache' ? '⚡ Cached result' : `${query_time_ms}ms · 5 sources queried in parallel`}
+              {source === 'cache' ? '⚡ Cached result' : `${query_time_ms}ms · 6 sources queried in parallel`}
             </span>
           </div>
         </div>

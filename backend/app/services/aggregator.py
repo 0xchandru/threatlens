@@ -2,7 +2,7 @@ import asyncio
 import time
 import aiohttp
 from app.models.ioc import IOCType
-from app.integrations import virustotal, abuseipdb, alienvault, urlhaus, greynoise
+from app.integrations import virustotal, abuseipdb, alienvault, urlhaus, threatfox, malwarebazaar
 
 TIMEOUT = aiohttp.ClientTimeout(total=10)
 
@@ -19,13 +19,14 @@ async def query_all_sources(
         abuseipdb.query(session, value, ioc_type),
         alienvault.query(session, value, ioc_type),
         urlhaus.query(session, value, ioc_type),
-        greynoise.query(session, value, ioc_type),
+        threatfox.query(session, value, ioc_type),
+        malwarebazaar.query(session, value, ioc_type),
     ]
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     elapsed_ms = int((time.monotonic() - start) * 1000)
 
-    source_names = ["virustotal", "abuseipdb", "alienvault", "urlhaus", "greynoise"]
+    source_names = ["virustotal", "abuseipdb", "alienvault", "urlhaus", "threatfox", "malwarebazaar"]
     output, errors = {}, []
 
     for name, result in zip(source_names, results):

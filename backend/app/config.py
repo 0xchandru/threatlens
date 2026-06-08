@@ -4,7 +4,6 @@ class Settings(BaseSettings):
     VIRUSTOTAL_API_KEY: str = ""
     ABUSEIPDB_API_KEY:  str = ""
     ALIENVAULT_API_KEY: str = ""
-    GREYNOISE_API_KEY:  str = ""
 
     DATABASE_URL: str = "sqlite:///./threatlens.db"
     REDIS_URL:    str = "redis://localhost:6379/0"

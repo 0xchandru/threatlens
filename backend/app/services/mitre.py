@@ -93,15 +93,38 @@ MAPPING_RULES = [
     },
     {
         "condition": lambda r: (
-            r.get("greynoise") and
-            r["greynoise"].get("noise") is True and
-            r["greynoise"].get("classification") == "malicious"
+            r.get("threatfox") and
+            r["threatfox"].get("status") == "found" and
+            r["threatfox"].get("confidence_level", 0) >= 75
         ),
         "technique_id": "T1595",
         "technique":    "Active Scanning",
         "tactic":       "reconnaissance",
         "confidence":   "high",
-        "source":       "greynoise",
+        "source":       "threatfox",
+    },
+    {
+        "condition": lambda r: (
+            r.get("threatfox") and
+            r["threatfox"].get("status") == "found" and
+            any("botnet" in str(t).lower() for t in r["threatfox"].get("threat_types", []))
+        ),
+        "technique_id": "T1583.005",
+        "technique":    "Botnet",
+        "tactic":       "resource-development",
+        "confidence":   "high",
+        "source":       "threatfox",
+    },
+    {
+        "condition": lambda r: (
+            r.get("malwarebazaar") and
+            r["malwarebazaar"].get("status") == "found"
+        ),
+        "technique_id": "T1027",
+        "technique":    "Obfuscated Files or Information",
+        "tactic":       "defense-evasion",
+        "confidence":   "medium",
+        "source":       "malwarebazaar",
     },
 ]
 

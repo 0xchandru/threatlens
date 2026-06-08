@@ -53,7 +53,7 @@ export default function Dashboard() {
         <StatCard label="Total IOCs" value={stats?.total_iocs?.toLocaleString()} />
         <StatCard label="Total Scans" value={stats?.total_scans?.toLocaleString()} />
         <StatCard label="Scans Today" value={stats?.scans_today?.toLocaleString()} />
-        <StatCard label="Avg Query Time" value={stats?.avg_query_time_ms ? `${stats.avg_query_time_ms}ms` : '—'} sub="5 sources parallel" />
+        <StatCard label="Avg Query Time" value={stats?.avg_query_time_ms ? `${stats.avg_query_time_ms}ms` : '—'} sub="6 sources parallel" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

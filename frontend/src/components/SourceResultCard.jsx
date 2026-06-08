@@ -1,15 +1,16 @@
 const SOURCE_META = {
-  virustotal: { label: 'VirusTotal',   color: 'text-blue-400',   icon: '🔬' },
-  abuseipdb:  { label: 'AbuseIPDB',    color: 'text-orange-400', icon: '🚨' },
-  alienvault: { label: 'AlienVault OTX', color: 'text-purple-400', icon: '👾' },
-  urlhaus:    { label: 'URLhaus',      color: 'text-red-400',    icon: '🔗' },
-  greynoise:  { label: 'GreyNoise',    color: 'text-teal-400',   icon: '📡' },
+  virustotal:   { label: 'VirusTotal',     color: 'text-blue-400',   icon: '🔬' },
+  abuseipdb:    { label: 'AbuseIPDB',      color: 'text-orange-400', icon: '🚨' },
+  alienvault:   { label: 'AlienVault OTX', color: 'text-purple-400', icon: '👾' },
+  urlhaus:      { label: 'URLhaus',        color: 'text-red-400',    icon: '🔗' },
+  threatfox:    { label: 'ThreatFox',      color: 'text-teal-400',   icon: '🦊' },
+  malwarebazaar:{ label: 'MalwareBazaar',  color: 'text-pink-400',   icon: '🧬' },
 }
 
 function StatusBadge({ status }) {
-  if (status === 'found')       return <span className="px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 text-xs">Found</span>
-  if (status === 'not_found')   return <span className="px-2 py-0.5 rounded-full bg-green-900/50 text-green-300 text-xs">Not found</span>
-  if (status === 'no_api_key')  return <span className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 text-xs">No API key</span>
+  if (status === 'found')           return <span className="px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 text-xs">Found</span>
+  if (status === 'not_found')       return <span className="px-2 py-0.5 rounded-full bg-green-900/50 text-green-300 text-xs">Not found</span>
+  if (status === 'no_api_key')      return <span className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 text-xs">No API key</span>
   if (status === 'invalid_api_key') return <span className="px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-300 text-xs">Invalid key</span>
   return <span className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 text-xs">N/A</span>
 }
@@ -91,21 +92,56 @@ function URLhausDetails({ data }) {
   )
 }
 
-function GreyNoiseDetails({ data }) {
+function ThreatFoxDetails({ data }) {
   if (data.status !== 'found') return null
-  const classColor = data.classification === 'malicious' ? 'text-red-400'
-    : data.classification === 'benign' ? 'text-green-400' : 'text-slate-400'
   return (
     <div className="mt-3 space-y-1 text-xs text-slate-400">
       <div className="flex justify-between">
-        <span>Classification</span>
-        <span className={`${classColor} font-medium capitalize`}>{data.classification || '—'}</span>
+        <span>Confidence</span>
+        <span className="text-teal-300 font-mono font-bold">{data.confidence_level}%</span>
       </div>
-      <div className="flex gap-3">
-        {data.noise && <span className="text-yellow-400">Internet Scanner</span>}
-        {data.riot && <span className="text-green-400">Known-Good Service</span>}
+      <div className="flex justify-between">
+        <span>IOC Matches</span>
+        <span className="text-slate-300">{data.ioc_count}</span>
       </div>
-      {data.name && <div className="text-slate-300">{data.name}</div>}
+      {data.malware?.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {data.malware.slice(0, 3).map(m => (
+            <span key={m} className="px-1.5 py-0.5 rounded bg-teal-900/40 text-teal-300 text-xs">{m}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MalwareBazaarDetails({ data }) {
+  if (data.status !== 'found') return null
+  return (
+    <div className="mt-3 space-y-1 text-xs text-slate-400">
+      {data.signature && (
+        <div className="flex justify-between">
+          <span>Signature</span>
+          <span className="text-pink-300 font-medium truncate max-w-[150px]">{data.signature}</span>
+        </div>
+      )}
+      <div className="flex justify-between">
+        <span>AV Detections</span>
+        <span className="text-slate-300">{data.detections} / {data.total_vendors}</span>
+      </div>
+      {data.file_type && (
+        <div className="flex justify-between">
+          <span>File Type</span>
+          <span className="text-slate-300">{data.file_type}</span>
+        </div>
+      )}
+      {data.tags?.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {data.tags.slice(0, 3).map(tag => (
+            <span key={tag} className="px-1.5 py-0.5 rounded bg-pink-900/40 text-pink-300 text-xs">{tag}</span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -136,11 +172,12 @@ export default function SourceResultCard({ source, data }) {
         </div>
         <StatusBadge status={data.status} />
       </div>
-      {source === 'virustotal'  && <VTDetails data={data} />}
-      {source === 'abuseipdb'   && <AbuseDetails data={data} />}
-      {source === 'alienvault'  && <AlienVaultDetails data={data} />}
-      {source === 'urlhaus'     && <URLhausDetails data={data} />}
-      {source === 'greynoise'   && <GreyNoiseDetails data={data} />}
+      {source === 'virustotal'    && <VTDetails data={data} />}
+      {source === 'abuseipdb'     && <AbuseDetails data={data} />}
+      {source === 'alienvault'    && <AlienVaultDetails data={data} />}
+      {source === 'urlhaus'       && <URLhausDetails data={data} />}
+      {source === 'threatfox'     && <ThreatFoxDetails data={data} />}
+      {source === 'malwarebazaar' && <MalwareBazaarDetails data={data} />}
     </div>
   )
 }

@@ -18,11 +18,12 @@ RISK_LEVELS = [
 ]
 
 WEIGHTS = {
-    "virustotal": 32,
-    "abuseipdb":  25,
-    "alienvault": 22,
-    "urlhaus":    12,
-    "greynoise":   9,
+    "virustotal":   30,
+    "abuseipdb":    23,
+    "alienvault":   20,
+    "urlhaus":      11,
+    "threatfox":    10,
+    "malwarebazaar": 6,
 }
 
 
@@ -69,24 +70,37 @@ def calculate_composite_score(results: dict) -> ScoreResult:
             total_weight_available += WEIGHTS["urlhaus"]
     breakdown["urlhaus"] = round(score_uh, 2)
 
-    score_gn = 0.0
-    if gn := results.get("greynoise"):
-        if gn.get("status") == "found":
-            classification = gn.get("classification", "unknown")
-            if gn.get("riot"):
-                score_gn = 0
-            elif classification == "malicious":
-                score_gn = WEIGHTS["greynoise"]
-            elif classification == "unknown":
-                score_gn = WEIGHTS["greynoise"] * 0.3
-            total_weight_available += WEIGHTS["greynoise"]
-    breakdown["greynoise"] = round(score_gn, 2)
+    score_tf = 0.0
+    if tf := results.get("threatfox"):
+        if tf.get("status") == "found":
+            confidence = tf.get("confidence_level", 0)
+            score_tf = (confidence / 100) * WEIGHTS["threatfox"]
+            total_weight_available += WEIGHTS["threatfox"]
+    breakdown["threatfox"] = round(score_tf, 2)
+
+    score_mb = 0.0
+    if mb := results.get("malwarebazaar"):
+        if mb.get("status") == "found":
+            detections    = mb.get("detections", 0)
+            total_vendors = mb.get("total_vendors", 1) or 1
+            ratio = min(detections / total_vendors, 1.0)
+            score_mb = ratio * WEIGHTS["malwarebazaar"]
+            total_weight_available += WEIGHTS["malwarebazaar"]
+    breakdown["malwarebazaar"] = round(score_mb, 2)
 
     composite = sum(breakdown.values())
 
+    if total_weight_available == 0:
+        return ScoreResult(
+            composite_score=0.0,
+            risk_level="unknown",
+            score_breakdown=breakdown,
+            confidence="none",
+        )
+
     if total_weight_available >= 80:
         confidence = "high"
-    elif total_weight_available >= 45:
+    elif total_weight_available >= 40:
         confidence = "medium"
     else:
         confidence = "low"

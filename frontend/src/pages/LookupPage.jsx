@@ -16,7 +16,7 @@ export default function LookupPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">IOC Lookup</h1>
         <p className="text-slate-400 text-sm mt-1">
-          Query 5 threat intelligence sources in parallel — VirusTotal, AbuseIPDB, AlienVault OTX, URLhaus, GreyNoise
+          Query 6 threat intelligence sources in parallel — VirusTotal, AbuseIPDB, AlienVault OTX, URLhaus, ThreatFox, MalwareBazaar
         </p>
       </div>
 
