@@ -1,1 +1,12 @@
 .env
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.idea/
+.vscode/
+.replit
+__pycache__/
+__init__.py
+venv/
