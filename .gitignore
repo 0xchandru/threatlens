@@ -53,3 +53,5 @@ logs/
 # Optional
 *.sqlite
 *.db
+
+.replit
