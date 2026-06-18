@@ -29,23 +29,63 @@ async def query(
     indicator_type, _ = SECTION_MAP[ioc_type]
 
     url = f"{OTX_BASE}/{indicator_type}/{value}/general"
-    async with session.get(url, headers=headers) as resp:
-        if resp.status == 404:
-            return {"status": "not_found", "pulse_count": 0}
-        if resp.status == 401:
-            return {"status": "invalid_api_key"}
-        resp.raise_for_status()
-        data = await resp.json()
+    try:
+        async with session.get(url, headers=headers) as resp:
+            if resp.status == 404:
+                return {"status": "not_found", "pulse_count": 0}
+            if resp.status == 401:
+                return {"status": "invalid_api_key"}
+            if resp.status != 200:
+                return {"status": "error", "code": resp.status}
+            data = await resp.json()
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
-    pulse_info = data.get("pulse_info", {})
-    pulses = pulse_info.get("pulses", [])
+    if not isinstance(data, dict):
+        return {"status": "error", "error": "unexpected response format"}
 
-    return {
-        "status":           "found",
-        "pulse_count":      len(pulses),
-        "threat_score":     data.get("indicator", {}).get("threat_score"),
-        "tags":             list({tag for p in pulses for tag in p.get("tags", [])}),
-        "malware_families": list({mf for p in pulses for mf in p.get("malware_families", [])}),
-        "adversaries":      list({a for p in pulses for a in p.get("adversary", []) if a}),
-        "pulse_names":      [p.get("name") for p in pulses[:5]],
-    }
+    try:
+        pulse_info = data.get("pulse_info", {})
+        if not isinstance(pulse_info, dict):
+            pulse_info = {}
+        pulses = pulse_info.get("pulses", [])
+        if not isinstance(pulses, list):
+            pulses = []
+
+        indicator = data.get("indicator", {})
+        threat_score = None
+        if isinstance(indicator, dict):
+            threat_score = indicator.get("threat_score")
+
+        tags = []
+        malware_families = []
+        adversaries = []
+        pulse_names = []
+        for p in pulses:
+            if not isinstance(p, dict):
+                continue
+            p_tags = p.get("tags", [])
+            if isinstance(p_tags, list):
+                tags.extend(p_tags)
+            p_mf = p.get("malware_families", [])
+            if isinstance(p_mf, list):
+                malware_families.extend(p_mf)
+            p_adv = p.get("adversary", [])
+            if isinstance(p_adv, list):
+                adversaries.extend([a for a in p_adv if a])
+            elif isinstance(p_adv, str) and p_adv:
+                adversaries.append(p_adv)
+            if p.get("name"):
+                pulse_names.append(p.get("name"))
+
+        return {
+            "status":           "found",
+            "pulse_count":      len(pulses),
+            "threat_score":     threat_score,
+            "tags":             list(set(tags)),
+            "malware_families": list(set(malware_families)),
+            "adversaries":      list(set(adversaries)),
+            "pulse_names":      pulse_names[:5],
+        }
+    except Exception as e:
+        return {"status": "error", "error": f"parse error: {str(e)}"}

@@ -1,18 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import api from '../lib/api'
 import ThreatTimeline from '../components/ThreatTimeline'
 import { getRiskConfig } from '../lib/scoring'
 
 const RISK_ORDER = ['critical', 'malicious', 'suspicious', 'low', 'clean']
 
-function StatCard({ label, value, sub }) {
+const card = { background: '#141b2d', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }
+
+function KpiCard({ label, value, sub, color = '#00d4ff', icon, glow }) {
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-      <div className="text-2xl font-bold text-white">{value ?? '—'}</div>
-      <div className="text-sm text-slate-400 mt-1">{label}</div>
-      {sub && <div className="text-xs text-slate-500 mt-0.5">{sub}</div>}
+    <div style={{ ...card, padding: 20, position: 'relative', overflow: 'hidden', boxShadow: glow ? `0 0 20px ${glow}` : 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 28, fontWeight: 800, color, fontFamily: 'monospace', lineHeight: 1 }}>{value ?? '—'}</div>
+          <div style={{ fontSize: 12, color: '#8892a4', marginTop: 6 }}>{label}</div>
+          {sub && <div style={{ fontSize: 10, color: '#8892a4', marginTop: 2, opacity: 0.7 }}>{sub}</div>}
+        </div>
+        {icon && <div style={{ fontSize: 24, opacity: 0.4 }}>{icon}</div>}
+      </div>
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${color}, transparent)`, opacity: 0.4 }} />
+    </div>
+  )
+}
+
+function PieTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null
+  return (
+    <div style={{ background: '#141b2d', border: '1px solid rgba(0,212,255,0.2)', borderRadius: 8, padding: '8px 14px' }}>
+      <p style={{ color: payload[0]?.payload?.color, fontSize: 13, fontWeight: 700, textTransform: 'uppercase' }}>{payload[0]?.name}</p>
+      <p style={{ color: '#c8d6e8', fontSize: 12 }}>{payload[0]?.value} IOCs</p>
     </div>
   )
 }
@@ -30,118 +48,136 @@ export default function Dashboard() {
   })
 
   const riskDist = stats?.risk_distribution || {}
-  const pieData = RISK_ORDER
-    .filter(r => riskDist[r])
-    .map(r => ({ name: r, value: riskDist[r], color: getRiskConfig(r).color }))
+  const pieData  = RISK_ORDER.filter(r => riskDist[r]).map(r => ({
+    name: r, value: riskDist[r], color: getRiskConfig(r).color,
+  }))
+
+  const typeBreakdown = stats?.ioc_type_breakdown || {}
+  const typeMax = Math.max(...Object.values(typeBreakdown), 1)
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400 animate-pulse">Loading dashboard...</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="skeleton" style={{ height: 32, width: 200 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+          {[1,2,3,4].map(i => <div key={i} className="skeleton" style={{ height: 90 }} />)}
+        </div>
+        <div className="skeleton" style={{ height: 220 }} />
       </div>
     )
   }
 
+  const hasCritical = stats?.recent_critical?.length > 0
+  const noData = !stats?.total_scans || stats.total_scans === 0
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-slate-400 text-sm mt-1">Threat intelligence activity overview</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Dashboard</h1>
+          <p style={{ color: '#8892a4', fontSize: 13, marginTop: 4 }}>Threat intelligence activity overview</p>
+        </div>
+        {hasCritical && (
+          <div className="critical-pulse" style={{ padding: '6px 14px', borderRadius: 20, background: 'rgba(255,68,68,0.12)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff4444', fontSize: 12, fontWeight: 700 }}>
+            ● {stats.recent_critical.length} Critical IOC{stats.recent_critical.length !== 1 ? 's' : ''}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total IOCs" value={stats?.total_iocs?.toLocaleString()} />
-        <StatCard label="Total Scans" value={stats?.total_scans?.toLocaleString()} />
-        <StatCard label="Scans Today" value={stats?.scans_today?.toLocaleString()} />
-        <StatCard label="Avg Query Time" value={stats?.avg_query_time_ms ? `${stats.avg_query_time_ms}ms` : '—'} sub="6 sources parallel" />
+      {/* KPI Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>
+        <KpiCard label="Total IOCs" value={stats?.total_iocs?.toLocaleString()} icon="🗂" color="#00d4ff" />
+        <KpiCard label="Total Scans" value={stats?.total_scans?.toLocaleString()} icon="📡" color="#7c3aed" />
+        <KpiCard label="Scans Today" value={stats?.scans_today?.toLocaleString()} icon="📅" color="#00ff88" />
+        <KpiCard label="Avg Query Time" value={stats?.avg_query_time_ms ? `${stats.avg_query_time_ms}ms` : '—'} sub="parallel" icon="⚡" color="#ffaa00" />
+        <KpiCard label="Critical Threats" value={stats?.recent_critical?.length || 0} icon="🚨"
+          color="#ff4444" glow={hasCritical ? 'rgba(255,68,68,0.2)' : undefined} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4">Risk Distribution</h3>
+      {/* Charts Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+        {/* Risk Donut */}
+        <div style={{ ...card, padding: 20 }}>
+          <h3 style={{ fontSize: 12, fontWeight: 700, color: '#8892a4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Risk Distribution</h3>
           {pieData.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                    dataKey="value" paddingAngle={3}>
-                    {pieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={44} outerRadius={68} dataKey="value" paddingAngle={3}>
+                    {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
-                    formatter={(value, name) => [value, name.toUpperCase()]}
-                  />
+                  <Tooltip content={<PieTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap gap-2 justify-center mt-2">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 8 }}>
                 {pieData.map(item => (
-                  <div key={item.name} className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: item.color }} />
-                    <span className="text-xs text-slate-400 capitalize">{item.name} ({item.value})</span>
+                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
+                    <span style={{ fontSize: 10, color: '#8892a4', textTransform: 'capitalize' }}>{item.name} ({item.value})</span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-40 text-slate-500 text-sm">
-              No scan data yet
-            </div>
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8892a4', fontSize: 13 }}>No scan data yet</div>
           )}
         </div>
 
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">IOC Types</h3>
-          {stats?.ioc_type_breakdown && Object.keys(stats.ioc_type_breakdown).length > 0 ? (
-            <div className="space-y-2">
-              {Object.entries(stats.ioc_type_breakdown).map(([type, count]) => {
-                const max = Math.max(...Object.values(stats.ioc_type_breakdown))
-                return (
-                  <div key={type} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 font-mono w-16 uppercase">{type}</span>
-                    <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-sky-500 rounded-full" style={{ width: `${(count/max)*100}%` }} />
-                    </div>
-                    <span className="text-xs text-slate-400 w-6 text-right">{count}</span>
+        {/* IOC Types */}
+        <div style={{ ...card, padding: 20 }}>
+          <h3 style={{ fontSize: 12, fontWeight: 700, color: '#8892a4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>IOC Types</h3>
+          {Object.keys(typeBreakdown).length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {Object.entries(typeBreakdown).map(([type, count]) => (
+                <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#8892a4', width: 56, textTransform: 'uppercase' }}>{type}</span>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(count / typeMax) * 100}%`, background: 'linear-gradient(90deg,#00d4ff,#0088cc)', borderRadius: 3, transition: 'width 0.8s ease' }} />
                   </div>
-                )
-              })}
+                  <span style={{ fontSize: 11, color: '#c8d6e8', width: 20, textAlign: 'right', fontFamily: 'monospace' }}>{count}</span>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-40 text-slate-500 text-sm">No data yet</div>
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8892a4', fontSize: 13 }}>No data yet</div>
           )}
         </div>
 
-        <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">Top Tags</h3>
+        {/* Top Tags */}
+        <div style={{ ...card, padding: 20 }}>
+          <h3 style={{ fontSize: 12, fontWeight: 700, color: '#8892a4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Top Tags</h3>
           {stats?.top_tags?.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
               {stats.top_tags.map(({ tag, count }) => (
-                <span key={tag}
-                  className="px-2 py-1 rounded-full bg-slate-700 text-slate-300 text-xs">
-                  {tag} <span className="text-slate-500 ml-0.5">{count}</span>
+                <span key={tag} style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.18)', color: '#00d4ff', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {tag}
+                  <span style={{ fontSize: 10, color: '#8892a4' }}>{count}</span>
                 </span>
               ))}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-40 text-slate-500 text-sm">No tags yet</div>
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8892a4', fontSize: 13 }}>No tags yet</div>
           )}
         </div>
       </div>
 
+      {/* Timeline */}
       {timeline && <ThreatTimeline data={timeline} />}
 
-      {stats?.recent_critical?.length > 0 && (
-        <div className="bg-slate-900 border border-red-900 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-red-400 mb-3">⚠ Recent Critical IOCs</h3>
-          <div className="space-y-2">
+      {/* Critical IOCs */}
+      {hasCritical && (
+        <div style={{ background: 'rgba(255,68,68,0.05)', border: '1px solid rgba(255,68,68,0.25)', borderRadius: 12, padding: 20 }}>
+          <h3 style={{ fontSize: 12, fontWeight: 700, color: '#ff4444', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+            ⚠ Recent Critical IOCs
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {stats.recent_critical.map((item, i) => (
-              <div key={i} className="flex items-center justify-between bg-slate-800 rounded-lg px-3 py-2">
-                <span className="font-mono text-sm text-slate-200">{item.ioc_value}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-400 uppercase">{item.ioc_type}</span>
-                  <span className="text-sm font-bold text-red-400">{item.composite_score?.toFixed(1)}</span>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,68,68,0.06)', border: '1px solid rgba(255,68,68,0.15)', borderRadius: 8, padding: '10px 14px' }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#e2e8f0' }}>{item.ioc_value}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 10, color: '#8892a4', textTransform: 'uppercase', fontWeight: 700 }}>{item.ioc_type}</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: '#ff4444', fontFamily: 'monospace' }}>{item.composite_score?.toFixed(0)}</span>
                 </div>
               </div>
             ))}
@@ -149,16 +185,21 @@ export default function Dashboard() {
         </div>
       )}
 
-      {(!stats?.total_scans || stats.total_scans === 0) && (
-        <div className="bg-slate-900 border border-slate-700 border-dashed rounded-xl p-8 text-center">
-          <div className="text-4xl mb-3">🔍</div>
-          <h3 className="text-lg font-semibold text-slate-300 mb-2">No investigations yet</h3>
-          <p className="text-slate-500 text-sm mb-4">
-            Start by looking up an IP, domain, URL, or file hash
+      {/* Empty state */}
+      {noData && (
+        <div style={{ ...card, padding: 60, textAlign: 'center', borderStyle: 'dashed' }}>
+          <div style={{ fontSize: 52, marginBottom: 16, opacity: 0.3 }}>🔍</div>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#c8d6e8', marginBottom: 8 }}>No investigations yet</h3>
+          <p style={{ fontSize: 14, color: '#8892a4', marginBottom: 24 }}>
+            Start by looking up an IP address, domain, URL, or file hash
           </p>
-          <Link to="/lookup"
-            className="inline-block px-6 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white text-sm font-medium transition-colors">
-            Start Investigation
+          <Link to="/lookup" style={{
+            padding: '10px 28px', borderRadius: 10,
+            background: 'linear-gradient(135deg, #00d4ff, #0088cc)',
+            color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none',
+            boxShadow: '0 0 20px rgba(0,212,255,0.3)',
+          }}>
+            Start First Investigation →
           </Link>
         </div>
       )}

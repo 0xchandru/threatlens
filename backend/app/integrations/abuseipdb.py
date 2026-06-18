@@ -17,15 +17,24 @@ async def query(
         return {"status": "no_api_key", "source": "abuseipdb"}
 
     headers = {"Key": settings.ABUSEIPDB_API_KEY, "Accept": "application/json"}
-    params  = {"ipAddress": value, "maxAgeInDays": 90, "verbose": True}
+    params  = {"ipAddress": value, "maxAgeInDays": "90", "verbose": 1}
 
-    async with session.get(ABUSEIPDB_URL, headers=headers, params=params) as resp:
-        if resp.status == 401:
-            return {"status": "invalid_api_key"}
-        resp.raise_for_status()
-        data = await resp.json()
+    try:
+        async with session.get(ABUSEIPDB_URL, headers=headers, params=params) as resp:
+            if resp.status == 401:
+                return {"status": "invalid_api_key"}
+            if resp.status != 200:
+                return {"status": "error", "code": resp.status}
+            data = await resp.json()
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+    if not isinstance(data, dict):
+        return {"status": "error", "error": "unexpected response format"}
 
     d = data.get("data", {})
+    if not isinstance(d, dict):
+        d = {}
     return {
         "status":             "found",
         "confidence_score":   d.get("abuseConfidenceScore", 0),
