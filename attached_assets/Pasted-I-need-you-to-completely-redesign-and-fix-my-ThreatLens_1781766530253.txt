@@ -1,0 +1,445 @@
+I need you to completely redesign and fix my ThreatLens project. 
+Here are the two major goals:
+
+═══════════════════════════════════════════════════════════
+PART 1: FIX ALL API INTEGRATION ERRORS (Backend Only)
+═══════════════════════════════════════════════════════════
+
+Fix these specific errors in the integration files WITHOUT 
+changing any API keys, .env configs, or endpoint URLs:
+
+ERROR 1 — AbuseIPDB (backend/app/integrations/abuseipdb.py):
+"Invalid variable type: value should be str, int or float, 
+got True of type <class 'bool'>"
+
+FIX: In the aiohttp request params dict, convert all boolean 
+values to strings or integers. Specifically:
+- Change any True/False params to "1"/"0" or remove them
+- The 'verbose' param if True should be passed as integer 1
+- Ensure ALL params in the dict are str, int, or float only
+- Example fix: params = {"ipAddress": ip, "maxAgeInDays": "90", 
+  "verbose": 1}  ← integer not boolean
+
+ERROR 2 — AlienVault OTX (backend/app/integrations/alienvault.py):
+"'str' object has no attribute 'get'"
+
+FIX: The response parsing is treating a string as a dict. 
+- Add proper JSON parsing: response_data = await resp.json()
+- Before calling .get() on any value, check if it's a dict first
+- Wrap all .get() calls with isinstance(data, dict) checks
+- Handle cases where pulse_info, general, or analysis 
+  endpoints return strings or error messages instead of dicts
+- Add try/except around each .get() chain
+
+ERROR 3 — ThreatFox (backend/app/integrations/threatfox.py 
+or wherever it's called):
+"401, message='Unauthorized', url=URL('https://threatfox-api.abuse.ch/api/v1/')"
+
+FIX: ThreatFox API requires auth header format change:
+- Add header: "Auth-Key": THREATFOX_API_KEY from config
+- The request body must be JSON with "query" field
+- Use: headers = {"Auth-Key": settings.THREATFOX_API_KEY}
+- Request format: {"query": "search_ioc", "search_term": ioc_value}
+- If no API key configured, return graceful no_api_key response
+- Add THREATFOX_API_KEY to config.py settings if not present
+
+GENERAL API FIXES:
+- In aggregator.py, wrap each source call in individual 
+  try/except so one failure doesn't break all results
+- Return partial results if some sources fail
+- Log errors per-source but continue execution
+- Ensure all integration files handle non-200 responses gracefully
+- Add response type checking before .json() calls
+- Add timeout handling for each API call
+
+DO NOT change:
+- API endpoint URLs
+- .env file structure  
+- Config variable names
+- Database schema
+- Any working integrations (VirusTotal, URLhaus, GreyNoise)
+
+═══════════════════════════════════════════════════════════
+PART 2: COMPLETE WORLD-CLASS UI REDESIGN (Frontend)
+═══════════════════════════════════════════════════════════
+
+Completely rebuild the entire frontend with a professional, 
+world-class SOC/Threat Intelligence platform UI. Keep all 
+existing API calls to the same backend endpoints but make 
+the UI look like a premium enterprise security platform 
+(think Recorded Future, Mandiant, or CrowdStrike style).
+
+DESIGN SYSTEM:
+- Dark theme: Background #0a0e1a, Surface #0f1629, 
+  Cards #141b2d, Accent #1e2a45
+- Primary color: Electric blue #00d4ff with glow effects
+- Danger: #ff4444, Warning: #ffaa00, Safe: #00ff88
+- Secondary accent: Purple #7c3aed for MITRE/ATT&CK sections
+- Font: Inter or JetBrains Mono for code/IOC values
+- Glassmorphism cards with backdrop-blur and border glow
+- Animated gradient borders on critical threat cards
+- Smooth transitions and micro-animations throughout
+- Neon glow effects on score gauges and threat meters
+
+════════════════
+PAGE 1: DASHBOARD (Main Landing)
+════════════════
+
+Top Header Bar:
+- ThreatLens logo with shield icon (animated pulse on new threats)
+- Live clock showing UTC time
+- "Threat Level" global indicator (animated color-coded)
+- Connection status dots for each API source
+- Quick search bar always visible in header
+
+Left Sidebar Navigation:
+- Dashboard icon + label
+- IOC Lookup icon + label  
+- Threat Hunt (search) icon + label
+- MITRE ATT&CK icon + label
+- Reports icon + label
+- History icon + label
+- Settings icon + label
+- Collapse/expand sidebar button
+
+Main Dashboard Grid Layout:
+
+ROW 1 — KPI Cards (5 across):
+- Total IOCs Analyzed (with trend arrow)
+- Critical Threats Found (red glow)
+- Malicious IOCs Today (with sparkline)
+- Average Threat Score (gauge mini)
+- Sources Online (X/5 with status dots)
+
+ROW 2 — Main Content (70/30 split):
+
+LEFT (70%):
+- "Recent IOC Lookups" table with columns:
+  IOC Value | Type | Risk Badge | Score Bar | 
+  Sources Hit | Time | Actions
+  Each row clickable, colored risk badges,
+  animated score progress bars
+- Infinite scroll or pagination
+- Filter chips: All | IPs | Domains | Hashes | URLs
+
+RIGHT (30%):
+- Threat Distribution donut chart (by type)
+- Risk Level breakdown bar chart
+- Top Tags cloud (c2, ransomware, phishing etc)
+
+ROW 3 — Full Width:
+- Timeline chart showing IOC lookups over 30 days
+  with risk level color coding (area chart, recharts)
+- Hover tooltips with detail
+
+ROW 4 — Two Column:
+LEFT: "Top Malicious IOCs" leaderboard with scores
+RIGHT: "MITRE Technique Frequency" horizontal bar chart
+
+════════════════
+PAGE 2: IOC LOOKUP (Core Feature — Make This Spectacular)
+════════════════
+
+Hero Section:
+- Large centered search bar with animated placeholder cycling:
+  "Enter IP address... Domain... File hash... URL..."
+- Auto-detect IOC type shown as badge as user types
+- Type indicator: IP / Domain / Hash / URL with icon
+- "Analyze Threat" button with gradient and glow
+- Below search: quick example pills to click
+  (try: 8.8.8.8 | google.com | known malware hash)
+
+Loading State (show during API calls):
+- Full animated loading screen with:
+  - 5 source cards appearing one by one
+  - Each shows: source logo + name + animated spinner
+  - As each completes: spinner → checkmark with result preview
+  - Progress bar showing "Querying 3/5 sources..."
+  - Estimated time remaining
+  - Matrix-style background animation (subtle)
+
+Results Layout (after query):
+
+SECTION A — Threat Summary Hero Card:
+- Large IOC value displayed in monospace font
+- IOC Type badge (IP/Domain/Hash/URL)
+- HUGE animated threat score gauge (0-100 semicircle)
+  with color gradient red/yellow/green and glow
+- Risk Level badge: CRITICAL/MALICIOUS/SUSPICIOUS/
+  LOW/CLEAN with pulsing animation for critical
+- Confidence level indicator
+- Query time badge
+- Action buttons: Save | Tag | Note | Export PDF | Share
+
+SECTION B — Source Results Grid (5 cards):
+Each source gets its own card with:
+
+VIRUSTOTAL CARD:
+- VirusTotal logo/icon
+- Detection ratio: "45/72 engines" as circular progress
+- Animated bar: malicious | suspicious | clean
+- Top 5 AV engines that detected it (with vendor logos)
+- Categories found
+- Last analysis date
+- Link to VT report
+- Status badge: DETECTED/CLEAN/ERROR
+
+ABUSEIPDB CARD:
+- AbuseIPDB logo
+- Abuse Confidence Score: large percentage with gauge
+- Total reports count
+- Country flag + country name
+- ISP/Domain info
+- Last reported date
+- Usage type
+- Status badge
+
+ALIENVAULT OTX CARD:
+- AlienVault logo
+- Pulse count with severity breakdown
+- Threat actors associated
+- Malware families mentioned
+- Tags from pulses as chips
+- Related IOCs count
+- Last pulse date
+- Status badge
+
+URLHAUS CARD:
+- URLhaus logo
+- Status: ONLINE/OFFLINE/NOT FOUND
+- Malware type if found
+- Tags as chips
+- Date added
+- Reporter info
+- URL status with color coding
+- Status badge
+
+GREYNOISE CARD:
+- GreyNoise logo
+- Classification: MALICIOUS/BENIGN/UNKNOWN
+- RIOT (internet scanner) indicator
+- Organization
+- Country flag
+- Last seen date
+- Tags list
+- Status badge
+
+SECTION C — Composite Score Breakdown:
+- Horizontal stacked visualization showing each 
+  source's contribution to final score
+- Each source: icon + name + contribution bar + points
+- Total = 100% visualization
+- "Why this score?" expandable explanation
+
+SECTION D — MITRE ATT&CK Mapping:
+- Purple-themed section header with ATT&CK logo
+- Cards for each mapped technique:
+  Technique ID badge | Technique Name | 
+  Tactic | Confidence | Source
+- Mini ATT&CK matrix heatmap showing which tactics 
+  are triggered (highlight active cells)
+- Expandable technique descriptions
+
+SECTION E — Threat Intelligence Correlation Panel:
+- "Correlation Analysis" section
+- Cross-reference findings between all 5 sources
+- Show agreements: "3/5 sources flagged as malicious"
+- Conflicting signals highlighted
+- AI-style narrative summary:
+  "This IP has been reported 847 times for abuse,
+   detected by 45/72 AV engines, and appears in
+   12 OTX pulses related to Emotet campaigns..."
+- Related IOCs from same campaign/actor
+
+SECTION F — Analyst Workspace:
+- Add Note textarea with timestamp auto-add
+- Notes history with analyst name and time
+- Add Tags: input + existing tags as removable chips
+  (c2, ransomware, phishing, scanner, tor, etc)
+- Quick tag buttons: pre-defined common tags
+- Save Investigation button
+
+SECTION G — Enrichment Data (for IPs):
+- World map with IP location pinned
+- ASN information card
+- WHOIS summary
+- Reverse DNS
+- Network range info
+- Abuse contact
+
+════════════════
+PAGE 3: THREAT HUNT (Advanced Search)
+════════════════
+
+Full-featured search interface:
+- Search bar with full-text IOC search
+- Advanced filters panel (collapsible):
+  - IOC Type: All/IP/Domain/Hash/URL (toggle chips)
+  - Risk Level: multiselect checkboxes with colors
+  - Date Range: from/to date pickers
+  - Tags: multi-select dropdown
+  - Score Range: dual-handle slider (0-100)
+  - Source: which intel platform flagged it
+
+Results as cards OR table (toggle view):
+- Card view: compact threat cards with key info
+- Table view: sortable columns with color coding
+- Export results as CSV button
+- Bulk actions: tag selected | export selected
+
+════════════════
+PAGE 4: MITRE ATT&CK MATRIX
+════════════════
+
+Full interactive ATT&CK matrix visualization:
+- All 14 tactics as columns
+- Techniques as cells
+- Color intensity = frequency of IOCs mapped to it
+- Click any cell = see all IOCs that triggered it
+- Filter by date range
+- Heat map style: darker = more detections
+- Legend with frequency scale
+- Export matrix as image
+
+════════════════
+PAGE 5: REPORTS
+════════════════
+
+Report generation center:
+- Generate report form: select IOC + scan
+- Report preview card with thumbnail
+- Download PDF button (prominent)
+- Report history table: 
+  IOC | Date | Analyst | Risk | Download
+- Report templates selector (future)
+- Scheduled reports toggle (future)
+
+════════════════
+PAGE 6: IOC HISTORY & TRENDING
+════════════════
+
+- Full history table of all lookups
+- Score trend chart per IOC (sparklines in table)
+- Most looked-up IOCs leaderboard
+- New vs recurring IOCs today
+- Analyst activity log
+
+═══════════════════════════════════════════════════════════
+GLOBAL UI REQUIREMENTS
+═══════════════════════════════════════════════════════════
+
+Animations & Effects:
+- Framer Motion for page transitions
+- Loading skeletons for all async data
+- Number count-up animations for scores/stats
+- Pulsing red dot for critical threats
+- Smooth sidebar expand/collapse
+- Toast notifications for actions (save/copy/error)
+- Copy-to-clipboard on click for IOC values
+
+Error States:
+- Per-source error cards (not full page error)
+- "API key not configured" with setup instructions
+- Retry button per failed source
+- Partial results shown even if some sources fail
+- Clear error messages instead of raw error text
+
+Empty States:
+- Beautiful empty state illustrations
+- "No threats found" with clean icon
+- "Start your first lookup" on fresh install
+
+Responsive:
+- Works on 1920px wide SOC monitors
+- Also works on 1280px laptop screens
+- Sidebar collapses to icons on smaller screens
+
+Performance:
+- TanStack Query for caching (don't re-fetch if cached)
+- Optimistic updates for notes/tags
+- Virtual scrolling for large history tables
+
+Toast Notifications:
+- "IOC copied to clipboard"
+- "Note saved successfully"  
+- "PDF report generated"
+- "Error: [source] unavailable" (per source, not blocking)
+
+═══════════════════════════════════════════════════════════
+COMPONENT FILE STRUCTURE TO CREATE/UPDATE
+═══════════════════════════════════════════════════════════
+
+frontend/src/
+├── components/
+│   ├── layout/
+│   │   ├── Sidebar.jsx (collapsible nav)
+│   │   ├── Header.jsx (search + clock + status)
+│   │   └── Layout.jsx (wrapper)
+│   ├── dashboard/
+│   │   ├── KPICard.jsx
+│   │   ├── RecentIOCTable.jsx
+│   │   ├── TimelineChart.jsx
+│   │   ├── ThreatDistribution.jsx
+│   │   └── MITREFrequency.jsx
+│   ├── lookup/
+│   │   ├── IOCSearchBar.jsx (hero search)
+│   │   ├── LoadingState.jsx (5-source animation)
+│   │   ├── ThreatSummaryCard.jsx (score gauge)
+│   │   ├── SourceResultCard.jsx (reusable per source)
+│   │   ├── ScoreBreakdown.jsx
+│   │   ├── MITRESection.jsx
+│   │   ├── CorrelationPanel.jsx
+│   │   ├── AnalystWorkspace.jsx
+│   │   └── EnrichmentMap.jsx
+│   ├── search/
+│   │   ├── SearchFilters.jsx
+│   │   └── ResultsGrid.jsx
+│   └── shared/
+│       ├── RiskBadge.jsx (colored risk level badge)
+│       ├── ScoreGauge.jsx (semicircle gauge)
+│       ├── SourceBadge.jsx (source status chip)
+│       ├── ThreatTag.jsx (colored tag chip)
+│       └── CopyButton.jsx
+├── pages/
+│   ├── DashboardPage.jsx
+│   ├── LookupPage.jsx
+│   ├── ThreatHuntPage.jsx
+│   ├── MATRIXPage.jsx
+│   ├── ReportsPage.jsx
+│   └── HistoryPage.jsx
+└── lib/
+    ├── api.js (all axios calls - keep existing endpoints)
+    └── constants.js (risk colors, source configs)
+
+═══════════════════════════════════════════════════════════
+PACKAGES TO ADD (npm install these):
+═══════════════════════════════════════════════════════════
+
+framer-motion        → page transitions & animations
+react-hot-toast      → toast notifications  
+react-gauge-chart    → threat score gauge
+react-leaflet        → IP geolocation map
+leaflet              → map dependency
+react-tooltip        → tooltips everywhere
+date-fns             → date formatting
+react-virtualized    → large table performance
+lucide-react         → icon library (SOC icons)
+clsx                 → conditional classnames
+
+═══════════════════════════════════════════════════════════
+SUMMARY OF WHAT TO DO:
+═══════════════════════════════════════════════════════════
+
+1. Fix backend/app/integrations/abuseipdb.py — boolean params
+2. Fix backend/app/integrations/alienvault.py — response parsing
+3. Fix backend/app/integrations/threatfox.py — auth header
+4. Update backend/app/services/aggregator.py — per-source error handling
+5. Add THREATFOX_API_KEY to backend/app/config.py if missing
+6. Completely rebuild entire frontend with world-class SOC UI
+7. Keep ALL existing API endpoint calls (same URLs, same methods)
+8. Install required npm packages
+9. Make sure hot-reload works after changes
+
+The result should look like a premium $50,000/year enterprise 
+threat intelligence platform, not a side project.
+Priority: Fix APIs first, then rebuild UI completely.
