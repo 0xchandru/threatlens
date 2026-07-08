@@ -59,3 +59,7 @@ logs/
 backend/threatlens.db
 
 projects_ideas_claude_opus.txt
+
+*__pycache__
+*__pycache__/*
+
